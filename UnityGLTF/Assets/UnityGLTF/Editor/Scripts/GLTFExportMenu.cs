@@ -3,9 +3,13 @@ using UnityEditor;
 using UnityGLTF;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using System.IO;
+using Newtonsoft.Json;
 
 public class GLTFExportMenu : EditorWindow
 {
+	public static string settingsPath = "./Temp/GLTFSettings.json";
+
     public static string RetrieveTexturePath(UnityEngine.Texture texture)
     {
         return AssetDatabase.GetAssetPath(texture);
@@ -18,6 +22,74 @@ public class GLTFExportMenu : EditorWindow
         window.Show();
     }
 
+	private void OnEnable()
+	{
+		if (!File.Exists(settingsPath))
+		{
+			return;
+		}
+
+		var settingsStream = File.OpenRead(settingsPath);
+		TextReader textReader = new StreamReader(settingsStream);
+		var jsonReader = new JsonTextReader(textReader);
+
+		if (jsonReader.Read() && jsonReader.TokenType != JsonToken.StartObject)
+		{
+			throw new Exception("GLTF settings must be an object");
+		}
+
+		while (jsonReader.Read() && jsonReader.TokenType == JsonToken.PropertyName)
+		{
+			var curProp = jsonReader.Value.ToString();
+			switch (curProp)
+			{
+				case "ExportNames":
+					GLTFSceneExporter.ExportNames = jsonReader.ReadAsBoolean().Value;
+					break;
+				case "ExportFullPath":
+					GLTFSceneExporter.ExportFullPath = jsonReader.ReadAsBoolean().Value;
+					break;
+				case "RequireExtensions":
+					GLTFSceneExporter.RequireExtensions = jsonReader.ReadAsBoolean().Value;
+					break;
+			}
+		}
+
+		jsonReader.Close();
+		textReader.Close();
+	}
+
+	private void OnDisable()
+	{
+		FileStream settingsStream = null;
+		if (!File.Exists(settingsPath))
+		{
+			settingsStream = File.Create(settingsPath);
+		}
+
+		if (settingsStream == null)
+		{
+			settingsStream = File.OpenWrite(settingsPath);
+		}
+		
+		TextWriter textWriter = new StreamWriter(settingsStream);
+		JsonWriter jsonWriter = new JsonTextWriter(textWriter);
+
+		jsonWriter.WriteStartObject();
+		jsonWriter.WritePropertyName("ExportNames");	
+		jsonWriter.WriteValue(GLTFSceneExporter.ExportNames);
+		jsonWriter.WritePropertyName("ExportFullPath");
+		jsonWriter.WriteValue(GLTFSceneExporter.ExportFullPath);
+		jsonWriter.WritePropertyName("RequireExtensions");
+		jsonWriter.WriteValue(GLTFSceneExporter.RequireExtensions);
+		jsonWriter.WriteEndObject();
+
+		jsonWriter.Flush();
+		textWriter.Flush();
+		jsonWriter.Close();
+		textWriter.Close();
+    }
+
     void OnGUI()
     {
         EditorGUILayout.LabelField("Exporter", EditorStyles.boldLabel);
@@ -28,7 +100,7 @@ public class GLTFExportMenu : EditorWindow
         EditorGUILayout.LabelField("Importer", EditorStyles.boldLabel);
         EditorGUILayout.Separator();
         EditorGUILayout.HelpBox("UnityGLTF version 0.1", MessageType.Info);
-        EditorGUILayout.HelpBox("Supported extensions: KHR_material_pbrSpecularGlossiness, KHR_texture_transform, KHR_materials_common, FB_materials_modmap", MessageType.Info);
+        EditorGUILayout.HelpBox("Supported extensions: KHR_material_pbrSpecularGlossiness, KHR_texture_transform, KHR_mesh_quantization, KHR_materials_common, FB_materials_modmap", MessageType.Info);
     }
 
     [MenuItem("GLTF/Export Selected")]
