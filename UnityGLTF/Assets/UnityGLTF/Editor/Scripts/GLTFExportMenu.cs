@@ -52,6 +52,9 @@ public class GLTFExportMenu : EditorWindow
 				case "RequireExtensions":
 					GLTFSceneExporter.RequireExtensions = jsonReader.ReadAsBoolean().Value;
 					break;
+				case "EnableMeshQuantization":
+					GLTFSceneExporter.EnableMeshQuantization = jsonReader.ReadAsBoolean().Value;
+					break;
 			}
 		}
 
@@ -82,6 +85,8 @@ public class GLTFExportMenu : EditorWindow
 		jsonWriter.WriteValue(GLTFSceneExporter.ExportFullPath);
 		jsonWriter.WritePropertyName("RequireExtensions");
 		jsonWriter.WriteValue(GLTFSceneExporter.RequireExtensions);
+		jsonWriter.WritePropertyName("EnableMeshQuantization");
+		jsonWriter.WriteValue(GLTFSceneExporter.EnableMeshQuantization);
 		jsonWriter.WriteEndObject();
 
 		jsonWriter.Flush();
@@ -95,8 +100,9 @@ public class GLTFExportMenu : EditorWindow
         EditorGUILayout.LabelField("Exporter", EditorStyles.boldLabel);
         GLTFSceneExporter.ExportFullPath = EditorGUILayout.Toggle("Export using original path", GLTFSceneExporter.ExportFullPath);
         GLTFSceneExporter.ExportNames = EditorGUILayout.Toggle("Export names of nodes", GLTFSceneExporter.ExportNames);
-        GLTFSceneExporter.RequireExtensions= EditorGUILayout.Toggle("Require extensions", GLTFSceneExporter.RequireExtensions);
-        EditorGUILayout.Separator();
+        GLTFSceneExporter.RequireExtensions = EditorGUILayout.Toggle("Require extensions", GLTFSceneExporter.RequireExtensions);
+		GLTFSceneExporter.EnableMeshQuantization = EditorGUILayout.Toggle("Enable mesh quantization", GLTFSceneExporter.EnableMeshQuantization);
+		EditorGUILayout.Separator();
         EditorGUILayout.LabelField("Importer", EditorStyles.boldLabel);
         EditorGUILayout.Separator();
         EditorGUILayout.HelpBox("UnityGLTF version 0.1", MessageType.Info);

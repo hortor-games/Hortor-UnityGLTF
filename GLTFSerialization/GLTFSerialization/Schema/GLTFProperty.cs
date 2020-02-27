@@ -10,6 +10,7 @@ namespace GLTF.Schema
 	{
 		private static Dictionary<string, ExtensionFactory> _extensionRegistry = new Dictionary<string, ExtensionFactory>()
 		{
+			{ KHR_mesh_quantizationExtensionFactory.EXTENSION_NAME, new KHR_mesh_quantizationExtensionFactory() },
 			{ FB_materials_modmapExtensionFactory.EXTENSION_NAME, new FB_materials_modmapExtensionFactory() },
 			{ KHR_materials_commonExtensionFactory.EXTENSION_NAME, new KHR_materials_commonExtensionFactory() },
 			{ ExtTextureTransformExtensionFactory.EXTENSION_NAME, new ExtTextureTransformExtensionFactory() },
