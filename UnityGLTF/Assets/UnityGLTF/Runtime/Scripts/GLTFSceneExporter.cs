@@ -1212,7 +1212,7 @@ namespace UnityGLTF
 				aNormal = ExportAccessor(SchemaExtensions.ConvertVector3CoordinateSpaceAndCopy(meshObj.normals, SchemaExtensions.CoordinateSpaceConversionScale));
 
 			if (meshObj.tangents.Length != 0)
-				aTangent = ExportAccessor(SchemaExtensions.ConvertVector4CoordinateSpaceAndCopy(meshObj.tangents, SchemaExtensions.TangentSpaceConversionScale), false);
+				aTangent = ExportAccessor(SchemaExtensions.ConvertVector4CoordinateSpaceAndCopy(meshObj.tangents, SchemaExtensions.TangentSpaceConversionScale), SemanticProperties.TANGENT);
 
 			// Better not to flip the texture coordinates. If uv* represents something else other than coordinates, we cannot simply perform 1 - uv*.y on it.
 			//if (meshObj.uv.Length != 0)
@@ -1244,8 +1244,8 @@ namespace UnityGLTF
 
 			if(meshObj.boneWeights.Length != 0)
 			{
-				aJoint0 = ExportAccessor(SchemaExtensions.ExtractJointAndCopy(meshObj.boneWeights));
-				aWeight0 = ExportAccessor(SchemaExtensions.ExtractWeightAndCopy(meshObj.boneWeights), true);
+				aJoint0 = ExportAccessor(SchemaExtensions.ExtractJointAndCopy(meshObj.boneWeights), SemanticProperties.JOINTS_0);
+				aWeight0 = ExportAccessor(SchemaExtensions.ExtractWeightAndCopy(meshObj.boneWeights), SemanticProperties.WEIGHTS_0);
 			}
 
 			if(skin != null)
@@ -1265,7 +1265,7 @@ namespace UnityGLTF
 				if (topology == MeshTopology.Triangles) SchemaExtensions.FlipTriangleFaces(indices);
 
 				primitive.Mode = GetDrawMode(topology);
-				primitive.Indices = ExportAccessor(indices, true);
+				primitive.Indices = ExportAccessor(indices, SemanticProperties.INDICES);
 
 				primitive.Attributes = new Dictionary<string, AccessorId>();
 				primitive.Attributes.Add(SemanticProperties.POSITION, aPosition);
@@ -2303,7 +2303,7 @@ namespace UnityGLTF
 			return id;
 		}
 		
-		private AccessorId ExportAccessor(int[] arr, bool isIndices = false)
+		private AccessorId ExportAccessor(int[] arr, string property)
 		{
 			uint count = (uint)arr.Length;
 
@@ -2312,9 +2312,12 @@ namespace UnityGLTF
 				throw new Exception("Accessors can not have a count of 0.");
 			}
 
+			bool isJoints = property == SemanticProperties.JOINTS_0;
+			bool isIndices = property == SemanticProperties.INDICES;
+
 			var accessor = new Accessor();
 			accessor.Count = count;
-			accessor.Type = GLTFAccessorAttributeType.SCALAR;
+			accessor.Type = isJoints ? GLTFAccessorAttributeType.VEC4 : GLTFAccessorAttributeType.SCALAR;
 
 			int min = arr[0];
 			int max = arr[0];
@@ -2592,7 +2595,7 @@ namespace UnityGLTF
 			return id;
 		}
 
-		private AccessorId ExportAccessor(Vector4[] arr, bool bBoneWeight)
+		private AccessorId ExportAccessor(Vector4[] arr, string property)
 		{
 			uint count = (uint)arr.Length;
 
@@ -2601,8 +2604,10 @@ namespace UnityGLTF
 				throw new Exception("Accessors can not have a count of 0.");
 			}
 
+			bool isWeights = property == SemanticProperties.WEIGHTS_0;
+
 			var accessor = new Accessor();
-			accessor.ComponentType = EnableMeshQuantization ? (bBoneWeight ? GLTFComponentType.UnsignedShort : GLTFComponentType.Short ) : GLTFComponentType.Float;
+			accessor.ComponentType = EnableMeshQuantization ? (isWeights ? GLTFComponentType.UnsignedShort : GLTFComponentType.Short ) : GLTFComponentType.Float;
 			accessor.Count = count;
 			accessor.Type = GLTFAccessorAttributeType.VEC4;
 
@@ -2663,7 +2668,7 @@ namespace UnityGLTF
 			{
 				if(EnableMeshQuantization)
 				{
-					if(bBoneWeight)
+					if(isWeights)
 					{
 						_bufferWriter.Write(GLTFMeshQuantizer.Encode2UShort(vec.x));
 						_bufferWriter.Write(GLTFMeshQuantizer.Encode2UShort(vec.y));
