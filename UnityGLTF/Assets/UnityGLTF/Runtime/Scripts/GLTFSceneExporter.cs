@@ -113,7 +113,8 @@ namespace UnityGLTF
 		private readonly Dictionary<Mesh, MeshPrimitive[]> _meshToPrims = new Dictionary<Mesh, MeshPrimitive[]>();
 
 		private readonly Dictionary<int, NodeId> _existedNodes = new Dictionary<int, NodeId>();
-		private readonly Dictionary<int, AnimationId> _existedAnimation = new Dictionary<int, AnimationId>();
+		private readonly Dictionary<int, AnimationId> _existedAnimations = new Dictionary<int, AnimationId>();
+		private readonly Dictionary<int, SkinId> _existedSkins = new Dictionary<int, SkinId>();
 
 		// Settings
 		public static bool ExportNames = true;
@@ -701,7 +702,7 @@ namespace UnityGLTF
 			{
 				if (ContainsValidRenderer(gameObject))
 				{
-					if(gameObject.GetComponent<SkinnedMeshRenderer>() != null)
+					if (gameObject.GetComponent<SkinnedMeshRenderer>() != null)
 					{
 						skinnedMeshPrims.Add(gameObject);
 					}
@@ -716,7 +717,7 @@ namespace UnityGLTF
 				var go = transform.GetChild(i).gameObject;
 				if (IsPrimitive(go))
 				{
-					if(go.GetComponent<SkinnedMeshRenderer>() != null)
+					if (go.GetComponent<SkinnedMeshRenderer>() != null)
 					{
 						skinnedMeshPrims.Add(go);
 					}
@@ -756,22 +757,34 @@ namespace UnityGLTF
 			foreach (var prim in primitives)
 			{
 				var smr = prim.GetComponent<SkinnedMeshRenderer>();
-				
+				if (_existedSkins.TryGetValue(smr.rootBone.GetInstanceID(), out SkinId skinId))
+				{
+					node.Skin = skinId;
+					node.Mesh = ExportMesh(prim.name, new GameObject[] { prim });
+					continue;
+				}
+
 				var skin = new Skin
 				{
 					Joints = new List<NodeId>()
 				};
-				
+
+				var mesh = smr.sharedMesh;
+				if (mesh.bindposes.Length != 0)
+				{
+					skin.InverseBindMatrices = ExportAccessor(SchemaExtensions.ConvertMatrix4x4CoordinateSpaceAndCopy(mesh.bindposes));
+				}
+
 				var baseId = _root.Nodes.Count;
-				
-				foreach(var bone in smr.bones)
+
+				foreach (var bone in smr.bones)
 				{
 					var translation = bone.localPosition;
 					var rotation = bone.localRotation;
 					var scale = bone.localScale;
 					
 					NodeId nodeId = null;
-					if(!_existedNodes.TryGetValue(bone.GetInstanceID(), out nodeId))
+					if (!_existedNodes.TryGetValue(bone.GetInstanceID(), out nodeId))
 					{
 						var boneNode = new Node
 						{
@@ -825,7 +838,7 @@ namespace UnityGLTF
 
 				skin.Skeleton = rootBoneId;
 
-				var skinId = new SkinId
+				skinId = new SkinId
 				{
 					Id = _root.Skins.Count,
 					Root = _root
@@ -835,11 +848,13 @@ namespace UnityGLTF
 
 				node.Skin = skinId;
 				
-				node.Mesh = ExportMesh(prim.name, new GameObject[] { prim }, skin);
+				node.Mesh = ExportMesh(prim.name, new GameObject[] { prim });
+
+				_existedSkins.Add(smr.rootBone.GetInstanceID(), skinId);
 			}
 		}
 
-		private MeshId ExportMesh(string name, GameObject[] primitives, Skin skin = null)
+		private MeshId ExportMesh(string name, GameObject[] primitives)
 		{
 			// check if this set of primitives is already a mesh
 			MeshId existingMeshId = null;
@@ -889,7 +904,7 @@ namespace UnityGLTF
 			mesh.Primitives = new List<MeshPrimitive>(primitives.Length);
 			foreach (var prim in primitives)
 			{
-				MeshPrimitive[] meshPrimitives = ExportPrimitive(prim, mesh, skin);
+				MeshPrimitive[] meshPrimitives = ExportPrimitive(prim, mesh);
 				if (meshPrimitives != null)
 				{
 					mesh.Primitives.AddRange(meshPrimitives);
@@ -908,7 +923,7 @@ namespace UnityGLTF
 
 		private void ExportAnimations(AnimationClip[] animationClips, Transform rootNodeTransform)
 		{
-			if(null == animationClips)
+			if (null == animationClips)
 			{
 				return;
 			}
@@ -917,10 +932,10 @@ namespace UnityGLTF
 			{
 				var animInstId = animationClip.GetInstanceID();
 				AnimationId existedAnimId;
-				if (!_existedAnimation.TryGetValue(animInstId, out existedAnimId))
+				if (!_existedAnimations.TryGetValue(animInstId, out existedAnimId))
 				{
 					var animId = ExportAnimationClip(animationClip, rootNodeTransform);
-					_existedAnimation.Add(animInstId, animId);
+					_existedAnimations.Add(animInstId, animId);
 				}
 			}
 		}
@@ -966,7 +981,7 @@ namespace UnityGLTF
 				{
 					GLTFAnimationChannelPath path;
 					AccessorId accessorId = ExportCurve(animationClip, property.name, property.curveBindings, frameCount, out path);
-					if(accessorId == null)
+					if (accessorId == null)
 					{
 						continue;
 					}
@@ -1104,14 +1119,14 @@ namespace UnityGLTF
 						bool bFoundCurveBindingSlot = false;
 						foreach (var property in curveGroup.properties)
 						{
-							if(property.name == Path.GetFileNameWithoutExtension(curveBinding.propertyName))
+							if (property.name == Path.GetFileNameWithoutExtension(curveBinding.propertyName))
 							{
 								property.curveBindings.Add(curveBinding);
 								bFoundCurveBindingSlot = true;
 							}
 						}
 						
-						if(!bFoundCurveBindingSlot)
+						if (!bFoundCurveBindingSlot)
 						{
 							curveGroup.properties.Add(new PropertyCurveBindings(Path.GetFileNameWithoutExtension(curveBinding.propertyName), curveBinding));
 						}
@@ -1161,7 +1176,7 @@ namespace UnityGLTF
 		}
 
 		// a mesh *might* decode to multiple prims if there are submeshes
-		private MeshPrimitive[] ExportPrimitive(GameObject gameObject, GLTFMesh mesh, Skin skin = null)
+		private MeshPrimitive[] ExportPrimitive(GameObject gameObject, GLTFMesh mesh)
 		{
 			Mesh meshObj = null;
 			SkinnedMeshRenderer smr = null;
@@ -1214,19 +1229,6 @@ namespace UnityGLTF
 			if (meshObj.tangents.Length != 0)
 				aTangent = ExportAccessor(SchemaExtensions.ConvertVector4CoordinateSpaceAndCopy(meshObj.tangents, SchemaExtensions.TangentSpaceConversionScale), SemanticProperties.TANGENT);
 
-			// Better not to flip the texture coordinates. If uv* represents something else other than coordinates, we cannot simply perform 1 - uv*.y on it.
-			//if (meshObj.uv.Length != 0)
-			//	aTexcoord0 = ExportAccessor(SchemaExtensions.FlipTexCoordArrayVAndCopy(meshObj.uv));
-
-			//if (meshObj.uv2.Length != 0)
-			//	aTexcoord1 = ExportAccessor(SchemaExtensions.FlipTexCoordArrayVAndCopy(meshObj.uv2));
-
-			//if (meshObj.uv3.Length != 0)
-			//	aTexcoord2 = ExportAccessor(SchemaExtensions.FlipTexCoordArrayVAndCopy(meshObj.uv3));
-
-			//if (meshObj.uv4.Length != 0)
-			//	aTexcoord3 = ExportAccessor(SchemaExtensions.FlipTexCoordArrayVAndCopy(meshObj.uv4));
-
 			if (meshObj.uv.Length != 0)
 				aTexcoord0 = ExportAccessor(meshObj.uv);
 
@@ -1242,16 +1244,10 @@ namespace UnityGLTF
 			if (meshObj.colors.Length != 0)
 				aColor0 = ExportAccessor(meshObj.colors);
 
-			if(meshObj.boneWeights.Length != 0)
+			if (meshObj.boneWeights.Length != 0)
 			{
 				aJoint0 = ExportAccessor(SchemaExtensions.ExtractJointAndCopy(meshObj.boneWeights), SemanticProperties.JOINTS_0);
 				aWeight0 = ExportAccessor(SchemaExtensions.ExtractWeightAndCopy(meshObj.boneWeights), SemanticProperties.WEIGHTS_0);
-			}
-
-			if(skin != null)
-			{
-				if (meshObj.bindposes.Length != 0)
-					skin.InverseBindMatrices = ExportAccessor(SchemaExtensions.ConvertMatrix4x4CoordinateSpaceAndCopy(meshObj.bindposes));
 			}
 
 			MaterialId lastMaterialId = null;
@@ -1345,7 +1341,7 @@ namespace UnityGLTF
 			material.DoubleSided = materialObj.HasProperty("_Cull") &&
 				materialObj.GetInt("_Cull") == (float)CullMode.Off;
 
-			if(materialObj.IsKeywordEnabled("_EMISSION"))
+			if (materialObj.IsKeywordEnabled("_EMISSION"))
 			{ 
 				if (materialObj.HasProperty("_EmissionColor"))
 				{
@@ -1358,7 +1354,7 @@ namespace UnityGLTF
 
 					if (emissionTex != null)
 					{
-						if(emissionTex is Texture2D)
+						if (emissionTex is Texture2D)
 						{
 							material.EmissiveTexture = ExportTextureInfo(emissionTex, TextureMapType.Emission);
 							Vector2 offset = materialObj.GetTextureOffset("_EmissionMap");
@@ -1379,7 +1375,7 @@ namespace UnityGLTF
 
 				if (normalTex != null)
 				{
-					if(normalTex is Texture2D)
+					if (normalTex is Texture2D)
 					{
 						material.NormalTexture = ExportNormalTextureInfo(normalTex, TextureMapType.Bump, materialObj);
 						Vector2 offset = materialObj.GetTextureOffset("_BumpMap");
@@ -1398,7 +1394,7 @@ namespace UnityGLTF
 				var occTex = materialObj.GetTexture("_OcclusionMap");
 				if (occTex != null)
 				{
-					if(occTex is Texture2D)
+					if (occTex is Texture2D)
 					{
 						material.OcclusionTexture = ExportOcclusionTextureInfo(occTex, TextureMapType.Occlusion, materialObj);
 						Vector2 offset = materialObj.GetTextureOffset("_OcclusionMap");
@@ -1627,7 +1623,7 @@ namespace UnityGLTF
 
 				if (mainTex != null)
 				{
-					if(mainTex is Texture2D)
+					if (mainTex is Texture2D)
 					{
 						pbr.BaseColorTexture = ExportTextureInfo(mainTex, TextureMapType.Main);
 						Vector2 offset = material.GetTextureOffset("_MainTex");
@@ -1659,7 +1655,7 @@ namespace UnityGLTF
 
 				if (mrTex != null)
 				{
-					if(mrTex is Texture2D)
+					if (mrTex is Texture2D)
 					{
 						pbr.MetallicRoughnessTexture = ExportTextureInfo(mrTex, TextureMapType.MetallicGloss);
 						Vector2 offset = material.GetTextureOffset("_MetallicGlossMap");
@@ -1756,7 +1752,7 @@ namespace UnityGLTF
 
 				if (mgTex != null)
 				{
-					if(mgTex is Texture2D)
+					if (mgTex is Texture2D)
 					{
 						specularGlossinessTexture = ExportTextureInfo(mgTex, TextureMapType.SpecGloss);
 						Vector2 offset = materialObj.GetTextureOffset("_SpecGlossMap");
@@ -2316,7 +2312,7 @@ namespace UnityGLTF
 			bool isIndices = property == SemanticProperties.INDICES;
 
 			var accessor = new Accessor();
-			accessor.Count = count;
+			accessor.Count = isJoints ? count / 4 : count;
 			accessor.Type = isJoints ? GLTFAccessorAttributeType.VEC4 : GLTFAccessorAttributeType.SCALAR;
 
 			int min = arr[0];
@@ -2394,8 +2390,11 @@ namespace UnityGLTF
 				}
 			}
 
-			accessor.Min = new List<double> { min };
-			accessor.Max = new List<double> { max };
+			if (accessor.Type == GLTFAccessorAttributeType.SCALAR)
+			{
+				accessor.Min = new List<double> { min };
+				accessor.Max = new List<double> { max };
+			}
 
 			uint byteLength = CalculateAlignment((uint)_bufferWriter.BaseStream.Position - byteOffset, 4);
 
@@ -2607,7 +2606,7 @@ namespace UnityGLTF
 			bool isWeights = property == SemanticProperties.WEIGHTS_0;
 
 			var accessor = new Accessor();
-			accessor.ComponentType = EnableMeshQuantization ? (isWeights ? GLTFComponentType.UnsignedShort : GLTFComponentType.Short ) : GLTFComponentType.Float;
+			accessor.ComponentType = EnableMeshQuantization ? (isWeights ? GLTFComponentType.UnsignedShort : GLTFComponentType.Short) : GLTFComponentType.Float;
 			accessor.Count = count;
 			accessor.Type = GLTFAccessorAttributeType.VEC4;
 
