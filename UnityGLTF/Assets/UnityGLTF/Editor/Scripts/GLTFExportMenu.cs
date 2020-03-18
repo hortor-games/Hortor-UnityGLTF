@@ -8,7 +8,8 @@ using Newtonsoft.Json;
 
 public class GLTFExportMenu : EditorWindow
 {
-	public static string settingsPath = "./Temp/GLTFSettings.json";
+	public static string SettingsPath = "./GLTFSettings.json";
+	public static string OutputPath = "";
 
     public static string RetrieveTexturePath(UnityEngine.Texture texture)
     {
@@ -24,12 +25,12 @@ public class GLTFExportMenu : EditorWindow
 
 	private void OnEnable()
 	{
-		if (!File.Exists(settingsPath))
+		if (!File.Exists(SettingsPath))
 		{
 			return;
 		}
 
-		var settingsStream = File.OpenRead(settingsPath);
+		var settingsStream = File.OpenRead(SettingsPath);
 		TextReader textReader = new StreamReader(settingsStream);
 		var jsonReader = new JsonTextReader(textReader);
 
@@ -43,6 +44,9 @@ public class GLTFExportMenu : EditorWindow
 			var curProp = jsonReader.Value.ToString();
 			switch (curProp)
 			{
+				case "OutputPath":
+					OutputPath = jsonReader.ReadAsString();
+					break;
 				case "ExportNames":
 					GLTFSceneExporter.ExportNames = jsonReader.ReadAsBoolean().Value;
 					break;
@@ -52,8 +56,17 @@ public class GLTFExportMenu : EditorWindow
 				case "RequireExtensions":
 					GLTFSceneExporter.RequireExtensions = jsonReader.ReadAsBoolean().Value;
 					break;
-				case "EnableMeshQuantization":
-					GLTFSceneExporter.EnableMeshQuantization = jsonReader.ReadAsBoolean().Value;
+				case "DisableYMovement":
+					AnimationCorrector.DisableYMovement = jsonReader.ReadAsBoolean().Value;
+					break;
+				case "DisableXZMovement":
+					AnimationCorrector.DisableXZMovement = jsonReader.ReadAsBoolean().Value;
+					break;
+				case "DealtWithBoneName":
+					AnimationCorrector.DealtWithBoneName = jsonReader.ReadAsString();
+					break;
+				case "EnableAnimationCorrector":
+					AnimationCorrector.Enable = jsonReader.ReadAsBoolean().Value;
 					break;
 			}
 		}
@@ -65,28 +78,36 @@ public class GLTFExportMenu : EditorWindow
 	private void OnDisable()
 	{
 		FileStream settingsStream = null;
-		if (!File.Exists(settingsPath))
+		if (!File.Exists(SettingsPath))
 		{
-			settingsStream = File.Create(settingsPath);
+			settingsStream = File.Create(SettingsPath);
 		}
 
 		if (settingsStream == null)
 		{
-			settingsStream = File.OpenWrite(settingsPath);
+			settingsStream = File.OpenWrite(SettingsPath);
 		}
 		
 		TextWriter textWriter = new StreamWriter(settingsStream);
 		JsonWriter jsonWriter = new JsonTextWriter(textWriter);
 
 		jsonWriter.WriteStartObject();
+		jsonWriter.WritePropertyName("OutputPath");
+		jsonWriter.WriteValue(OutputPath);
 		jsonWriter.WritePropertyName("ExportNames");	
 		jsonWriter.WriteValue(GLTFSceneExporter.ExportNames);
 		jsonWriter.WritePropertyName("ExportFullPath");
 		jsonWriter.WriteValue(GLTFSceneExporter.ExportFullPath);
 		jsonWriter.WritePropertyName("RequireExtensions");
 		jsonWriter.WriteValue(GLTFSceneExporter.RequireExtensions);
-		jsonWriter.WritePropertyName("EnableMeshQuantization");
-		jsonWriter.WriteValue(GLTFSceneExporter.EnableMeshQuantization);
+		jsonWriter.WritePropertyName("DisableYMovement");
+		jsonWriter.WriteValue(AnimationCorrector.DisableYMovement);
+		jsonWriter.WritePropertyName("DisableXZMovement");
+		jsonWriter.WriteValue(AnimationCorrector.DisableXZMovement);
+		jsonWriter.WritePropertyName("DealtWithBoneName");
+		jsonWriter.WriteValue(AnimationCorrector.DealtWithBoneName);
+		jsonWriter.WritePropertyName("EnableAnimationCorrector");
+		jsonWriter.WriteValue(AnimationCorrector.Enable);
 		jsonWriter.WriteEndObject();
 
 		jsonWriter.Flush();
@@ -100,8 +121,21 @@ public class GLTFExportMenu : EditorWindow
         EditorGUILayout.LabelField("Exporter", EditorStyles.boldLabel);
         GLTFSceneExporter.ExportFullPath = EditorGUILayout.Toggle("Export using original path", GLTFSceneExporter.ExportFullPath);
         GLTFSceneExporter.ExportNames = EditorGUILayout.Toggle("Export names of nodes", GLTFSceneExporter.ExportNames);
-        GLTFSceneExporter.RequireExtensions = EditorGUILayout.Toggle("Require extensions", GLTFSceneExporter.RequireExtensions);
-		GLTFSceneExporter.EnableMeshQuantization = EditorGUILayout.Toggle("Enable mesh quantization", GLTFSceneExporter.EnableMeshQuantization);
+        GLTFSceneExporter.RequireExtensions= EditorGUILayout.Toggle("Require extensions", GLTFSceneExporter.RequireExtensions);
+		EditorGUILayout.Separator();
+		EditorGUILayout.LabelField("Skeleton Animation", EditorStyles.boldLabel);
+
+		AnimationCorrector.Enable = EditorGUILayout.Toggle("Enable animation corrector", AnimationCorrector.Enable);
+		if (AnimationCorrector.Enable)
+		{
+			AnimationCorrector.DisableYMovement = EditorGUILayout.Toggle("Disable Y movement", AnimationCorrector.DisableYMovement);
+			AnimationCorrector.DisableXZMovement = EditorGUILayout.Toggle("Disable XZ movement", AnimationCorrector.DisableXZMovement);
+			EditorGUILayout.BeginHorizontal();
+			EditorGUILayout.LabelField("Root Bone Name", GUILayout.Width(150));
+			AnimationCorrector.DealtWithBoneName = EditorGUILayout.TextField(AnimationCorrector.DealtWithBoneName);
+			EditorGUILayout.EndHorizontal();
+		}
+
 		EditorGUILayout.Separator();
         EditorGUILayout.LabelField("Importer", EditorStyles.boldLabel);
         EditorGUILayout.Separator();
@@ -123,9 +157,11 @@ public class GLTFExportMenu : EditorWindow
 		var exportOptions = new ExportOptions { TexturePathRetriever = RetrieveTexturePath };
 		var exporter = new GLTFSceneExporter(Selection.transforms, exportOptions);
 
-		var path = EditorUtility.OpenFolderPanel("glTF Export Path", "", "");
-		if (!string.IsNullOrEmpty(path)) {
-			exporter.SaveGLTFandBin (path, name);
+		var path = EditorUtility.SaveFolderPanel("glTF Export Path", OutputPath, "");
+		if (!string.IsNullOrEmpty(path))
+		{
+			OutputPath = path;
+			exporter.SaveGLTFandBin(OutputPath, name);
 		}
 	}
 	
@@ -143,10 +179,11 @@ public class GLTFExportMenu : EditorWindow
 		var exportOptions = new ExportOptions { TexturePathRetriever = RetrieveTexturePath };
 		var exporter = new GLTFSceneExporter(Selection.transforms, exportOptions);
 
-		var path = EditorUtility.OpenFolderPanel("glTF Export Path", "", "");
+		var path = EditorUtility.SaveFolderPanel("glTF Export Path", OutputPath, "");
 		if (!string.IsNullOrEmpty(path))
 		{
-			exporter.SaveGLB(path, name);
+			OutputPath = path;
+			exporter.SaveGLB(OutputPath, name);
 		}
 	}
 
@@ -159,9 +196,11 @@ public class GLTFExportMenu : EditorWindow
 
 		var exportOptions = new ExportOptions { TexturePathRetriever = RetrieveTexturePath };
 		var exporter = new GLTFSceneExporter(transforms, exportOptions);
-		var path = EditorUtility.OpenFolderPanel("glTF Export Path", "", "");
-		if (path != "") {
-			exporter.SaveGLTFandBin (path, scene.name);
+		var path = EditorUtility.SaveFolderPanel("glTF Export Path", OutputPath, "");
+		if (!string.IsNullOrEmpty(path))
+		{
+			OutputPath = path;
+			exporter.SaveGLTFandBin(OutputPath, scene.name);
 		}
 	}
 }
