@@ -120,6 +120,7 @@ namespace UnityGLTF
 		public static bool ExportNames = true;
 		public static bool ExportFullPath = true;
 		public static bool RequireExtensions = false;
+		public static bool EnableMeshQuantization = false;
 
 		/// <summary>
 		/// Create a GLTFExporter that exports out a transform
@@ -1240,7 +1241,7 @@ namespace UnityGLTF
 				aNormal = ExportAccessor(SchemaExtensions.ConvertVector3CoordinateSpaceAndCopy(meshObj.normals, SchemaExtensions.CoordinateSpaceConversionScale));
 
 			if (meshObj.tangents.Length != 0)
-				aTangent = ExportAccessor(SchemaExtensions.ConvertVector4CoordinateSpaceAndCopy(meshObj.tangents, SchemaExtensions.TangentSpaceConversionScale));
+				aTangent = ExportAccessor(SchemaExtensions.ConvertVector4CoordinateSpaceAndCopy(meshObj.tangents, SchemaExtensions.TangentSpaceConversionScale), SemanticProperties.TANGENT);
 
 			if (meshObj.uv.Length != 0)
 				aTexcoord0 = ExportAccessor(meshObj.uv);
@@ -1260,7 +1261,7 @@ namespace UnityGLTF
 			if (meshObj.boneWeights.Length != 0)
 			{
 				aJoint0 = ExportAccessor(SchemaExtensions.ExtractJointAndCopy(meshObj.boneWeights), SemanticProperties.JOINTS_0);
-				aWeight0 = ExportAccessor(SchemaExtensions.ExtractWeightAndCopy(meshObj.boneWeights));
+				aWeight0 = ExportAccessor(SchemaExtensions.ExtractWeightAndCopy(meshObj.boneWeights), SemanticProperties.WEIGHTS_0);
 			}
 
 			MaterialId lastMaterialId = null;
@@ -2300,6 +2301,7 @@ namespace UnityGLTF
 			uint byteLength = CalculateAlignment((uint)_bufferWriter.BaseStream.Position - byteOffset, 4);
 
 			accessor.BufferView = ExportBufferView(byteOffset, byteLength);
+			accessor.Normalized = false;
 
 			var id = new AccessorId
 			{
@@ -2411,6 +2413,7 @@ namespace UnityGLTF
 			uint byteLength = CalculateAlignment((uint)_bufferWriter.BaseStream.Position - byteOffset, 4);
 
 			accessor.BufferView = ExportBufferView(byteOffset, byteLength);
+			accessor.Normalized = false;
 
 			var id = new AccessorId
 			{
@@ -2447,7 +2450,7 @@ namespace UnityGLTF
 			}
 
 			var accessor = new Accessor();
-			accessor.ComponentType = GLTFComponentType.Float;
+			accessor.ComponentType = EnableMeshQuantization ? GLTFComponentType.UnsignedShort : GLTFComponentType.Float;
 			accessor.Count = count;
 			accessor.Type = GLTFAccessorAttributeType.VEC2;
 
@@ -2486,13 +2489,22 @@ namespace UnityGLTF
 
 			foreach (var vec in arr)
 			{
+				if (EnableMeshQuantization)
+				{
+					_bufferWriter.Write(GLTFMeshQuantizer.Encode2UShort(vec.x));
+					_bufferWriter.Write(GLTFMeshQuantizer.Encode2UShort(vec.y));
+				}
+				else
+				{
 					_bufferWriter.Write(vec.x);
 					_bufferWriter.Write(vec.y);
+				}
 			}
 
 			uint byteLength = CalculateAlignment((uint)_bufferWriter.BaseStream.Position - byteOffset, 4);
 
 			accessor.BufferView = ExportBufferView(byteOffset, byteLength);
+			accessor.Normalized = EnableMeshQuantization;
 
 			var id = new AccessorId
 			{
@@ -2514,7 +2526,7 @@ namespace UnityGLTF
 			}
 
 			var accessor = new Accessor();
-			accessor.ComponentType = GLTFComponentType.Float;
+			accessor.ComponentType = EnableMeshQuantization ? GLTFComponentType.Short : GLTFComponentType.Float;
 			accessor.Count = count;
 			accessor.Type = GLTFAccessorAttributeType.VEC3;
 
@@ -2561,16 +2573,30 @@ namespace UnityGLTF
 			AlignToBoundary(_bufferWriter.BaseStream, 0x00);
 			uint byteOffset = CalculateAlignment((uint)_bufferWriter.BaseStream.Position, 4);
 
+			if (EnableMeshQuantization)
+			{
+				var positions = GLTFMeshQuantizer.EncodePositions(arr, new Vector3(minX, minY, minZ), new Vector3(maxX, maxY, maxZ));
+				for (int i = 0; i < arr.Length; ++i)
+				{
+					_bufferWriter.Write(positions[i * 3]);
+					_bufferWriter.Write(positions[i * 3 + 1]);
+					_bufferWriter.Write(positions[i * 3 + 2]);
+				}
+			}
+			else
+			{
 				foreach (var vec in arr)
 				{
 					_bufferWriter.Write(vec.x);
 					_bufferWriter.Write(vec.y);
 					_bufferWriter.Write(vec.z);
+				}
 			}
 
 			uint byteLength = CalculateAlignment((uint)_bufferWriter.BaseStream.Position - byteOffset, 4);
 
 			accessor.BufferView = ExportBufferView(byteOffset, byteLength);
+			accessor.Normalized = EnableMeshQuantization;
 
 			var id = new AccessorId
 			{
@@ -2582,7 +2608,7 @@ namespace UnityGLTF
 			return id;
 		}
 
-		private AccessorId ExportAccessor(Vector4[] arr)
+		private AccessorId ExportAccessor(Vector4[] arr, string property)
 		{
 			uint count = (uint)arr.Length;
 
@@ -2591,8 +2617,9 @@ namespace UnityGLTF
 				throw new Exception("Accessors can not have a count of 0.");
 			}
 
+			bool isWeights = property == SemanticProperties.WEIGHTS_0;
 			var accessor = new Accessor();
-			accessor.ComponentType = GLTFComponentType.Float;
+			accessor.ComponentType = EnableMeshQuantization ? (isWeights ? GLTFComponentType.UnsignedShort : GLTFComponentType.Short) : GLTFComponentType.Float;
 			accessor.Count = count;
 			accessor.Type = GLTFAccessorAttributeType.VEC4;
 
@@ -2651,15 +2678,36 @@ namespace UnityGLTF
 
 			foreach (var vec in arr)
 			{
+				if(EnableMeshQuantization)
+				{
+					if(isWeights)
+					{
+						_bufferWriter.Write(GLTFMeshQuantizer.Encode2UShort(vec.x));
+						_bufferWriter.Write(GLTFMeshQuantizer.Encode2UShort(vec.y));
+						_bufferWriter.Write(GLTFMeshQuantizer.Encode2UShort(vec.z));
+						_bufferWriter.Write(GLTFMeshQuantizer.Encode2UShort(vec.w));
+					}
+					else
+					{
+						_bufferWriter.Write(GLTFMeshQuantizer.Encode2Short(vec.x));
+						_bufferWriter.Write(GLTFMeshQuantizer.Encode2Short(vec.y));
+						_bufferWriter.Write(GLTFMeshQuantizer.Encode2Short(vec.z));
+						_bufferWriter.Write(GLTFMeshQuantizer.Encode2Short(vec.w));
+					}
+				}
+				else
+				{
 					_bufferWriter.Write(vec.x);
 					_bufferWriter.Write(vec.y);
 					_bufferWriter.Write(vec.z);
 					_bufferWriter.Write(vec.w);
+				}
 			}
 
 			uint byteLength = CalculateAlignment((uint)_bufferWriter.BaseStream.Position - byteOffset, 4);
 
 			accessor.BufferView = ExportBufferView(byteOffset, byteLength);
+			accessor.Normalized = EnableMeshQuantization;
 
 			var id = new AccessorId
 			{
@@ -2681,7 +2729,7 @@ namespace UnityGLTF
 			}
 
 			var accessor = new Accessor();
-			accessor.ComponentType = GLTFComponentType.Float;
+			accessor.ComponentType = EnableMeshQuantization ? GLTFComponentType.Short : GLTFComponentType.Float;
 			accessor.Count = count;
 			accessor.Type = GLTFAccessorAttributeType.VEC4;
 
@@ -2740,15 +2788,26 @@ namespace UnityGLTF
 
 			foreach (var vec in arr)
 			{
+				if (EnableMeshQuantization)
+				{
+					_bufferWriter.Write(GLTFMeshQuantizer.Encode2Short(vec.x));
+					_bufferWriter.Write(GLTFMeshQuantizer.Encode2Short(vec.y));
+					_bufferWriter.Write(GLTFMeshQuantizer.Encode2Short(vec.z));
+					_bufferWriter.Write(GLTFMeshQuantizer.Encode2Short(vec.w));
+				}
+				else
+				{
 					_bufferWriter.Write(vec.x);
 					_bufferWriter.Write(vec.y);
 					_bufferWriter.Write(vec.z);
 					_bufferWriter.Write(vec.w);
+				}
 			}
 
 			uint byteLength = CalculateAlignment((uint)_bufferWriter.BaseStream.Position - byteOffset, 4);
 
 			accessor.BufferView = ExportBufferView(byteOffset, byteLength);
+			accessor.Normalized = EnableMeshQuantization;
 
 			var id = new AccessorId
 			{
@@ -2770,7 +2829,7 @@ namespace UnityGLTF
 			}
 
 			var accessor = new Accessor();
-			accessor.ComponentType = GLTFComponentType.Float;
+			accessor.ComponentType = EnableMeshQuantization ? GLTFComponentType.UnsignedByte : GLTFComponentType.Float;
 			accessor.Count = count;
 			accessor.Type = GLTFAccessorAttributeType.VEC4;
 
@@ -2829,15 +2888,26 @@ namespace UnityGLTF
 
 			foreach (var color in arr)
 			{
+				if (EnableMeshQuantization)
+				{
+					_bufferWriter.Write(GLTFMeshQuantizer.Encode2Byte(color.r));
+					_bufferWriter.Write(GLTFMeshQuantizer.Encode2Byte(color.g));
+					_bufferWriter.Write(GLTFMeshQuantizer.Encode2Byte(color.b));
+					_bufferWriter.Write(GLTFMeshQuantizer.Encode2Byte(color.a));
+				}
+				else
+				{
 					_bufferWriter.Write(color.r);
 					_bufferWriter.Write(color.g);
 					_bufferWriter.Write(color.b);
 					_bufferWriter.Write(color.a);
+				}
 			}
 
 			uint byteLength = CalculateAlignment((uint)_bufferWriter.BaseStream.Position - byteOffset, 4);
 
 			accessor.BufferView = ExportBufferView(byteOffset, byteLength);
+			accessor.Normalized = EnableMeshQuantization;
 
 			var id = new AccessorId
 			{
@@ -2889,6 +2959,7 @@ namespace UnityGLTF
 			uint byteLength = CalculateAlignment((uint)_bufferWriter.BaseStream.Position - byteOffset, 4);
 
 			accessor.BufferView = ExportBufferView(byteOffset, byteLength);
+			accessor.Normalized = false;
 
 			var id = new AccessorId
 			{
