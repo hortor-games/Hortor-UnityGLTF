@@ -617,7 +617,78 @@ namespace UnityGLTF
 				}
 			}
 
+			var colliders = nodeTransform.gameObject.GetComponents<Collider>();
+			if (colliders != null)
+			{
+				ExportColliders(node, colliders);
+			}
+
 			return id;
+		}
+
+		private void ExportColliders(Node node, Collider[] colliders)
+		{
+			if (colliders == null) return;
+
+			if (_root.ExtensionsUsed == null)
+			{
+				_root.ExtensionsUsed = new List<string>(
+					new[] { HT_node_colliderExtensionFactory.EXTENSION_NAME }
+				);
+			}
+			else if (!_root.ExtensionsUsed.Contains(HT_node_colliderExtensionFactory.EXTENSION_NAME))
+			{
+				_root.ExtensionsUsed.Add(HT_node_colliderExtensionFactory.EXTENSION_NAME);
+			}
+
+			if (RequireExtensions)
+			{
+				if (_root.ExtensionsRequired == null)
+				{
+					_root.ExtensionsRequired = new List<string>(
+						new[] { HT_node_colliderExtensionFactory.EXTENSION_NAME }
+					);
+				}
+				else if (!_root.ExtensionsRequired.Contains(HT_node_colliderExtensionFactory.EXTENSION_NAME))
+				{
+					_root.ExtensionsRequired.Add(HT_node_colliderExtensionFactory.EXTENSION_NAME);
+				}
+			}
+
+			List<HT_node_colliderExtension.Collider> cs = new List<HT_node_colliderExtension.Collider>();
+			foreach (var collider in colliders)
+			{
+				if (collider.GetType() == typeof(BoxCollider))
+				{
+					var c = (BoxCollider)collider;
+					cs.Add(new HT_node_colliderExtension.BoxCollider(c.isTrigger,
+						new GLTF.Math.Vector3(c.center.x, c.center.y, c.center.z),
+						new GLTF.Math.Vector3(c.size.x, c.size.y, c.size.z)));
+				}
+				else if (collider.GetType() == typeof(SphereCollider))
+				{
+					var c = (SphereCollider)collider;
+					cs.Add(new HT_node_colliderExtension.SphereCollider(c.isTrigger,
+						new GLTF.Math.Vector3(c.center.x, c.center.y, c.center.z),
+						c.radius));
+				}
+				else if (collider.GetType() == typeof(CapsuleCollider))
+				{
+					var c = (CapsuleCollider)collider;
+					cs.Add(new HT_node_colliderExtension.CapsuleCollider(c.isTrigger,
+						new GLTF.Math.Vector3(c.center.x, c.center.y, c.center.z),
+						c.radius,
+						c.height,
+						(HT_node_colliderExtension.CapsuleDirection)c.direction));
+				}
+			}
+
+			if (node.Extensions == null)
+			{
+				node.Extensions = new Dictionary<string, IExtension>();
+			}
+
+			node.Extensions[HT_node_colliderExtensionFactory.EXTENSION_NAME] = new HT_node_colliderExtension(cs);
 		}
 
 		private CameraId ExportCamera(Camera unityCamera)
