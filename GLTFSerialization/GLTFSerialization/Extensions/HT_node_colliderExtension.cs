@@ -186,14 +186,11 @@ namespace GLTF.Schema
 
 		public JProperty Serialize()
 		{
-			JObject ext = new JObject();
+			JArray ext = new JArray();
 
 			foreach (Collider collider in Colliders)
 			{
-				ext.Add(new JProperty(
-					collider.Type.ToString() + "_" + Guid.NewGuid().ToString("N"),
-					collider.Serialize()
-				));
+				ext.Add(JToken.FromObject(collider.Serialize()));
 			}
 
 			return new JProperty(HT_node_colliderExtensionFactory.EXTENSION_NAME, ext);
