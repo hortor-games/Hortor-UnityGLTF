@@ -56,6 +56,9 @@ public class GLTFExportMenu : EditorWindow
 				case "RequireExtensions":
 					GLTFSceneExporter.RequireExtensions = jsonReader.ReadAsBoolean().Value;
 					break;
+				case "ExportPhysicsColliders":
+					GLTFSceneExporter.ExportPhysicsColliders = jsonReader.ReadAsBoolean().Value;
+					break;
 				case "DisableYMovement":
 					AnimationCorrector.DisableYMovement = jsonReader.ReadAsBoolean().Value;
 					break;
@@ -100,6 +103,8 @@ public class GLTFExportMenu : EditorWindow
 		jsonWriter.WriteValue(GLTFSceneExporter.ExportFullPath);
 		jsonWriter.WritePropertyName("RequireExtensions");
 		jsonWriter.WriteValue(GLTFSceneExporter.RequireExtensions);
+		jsonWriter.WritePropertyName("ExportPhysicsColliders");
+		jsonWriter.WriteValue(GLTFSceneExporter.ExportPhysicsColliders);
 		jsonWriter.WritePropertyName("DisableYMovement");
 		jsonWriter.WriteValue(AnimationCorrector.DisableYMovement);
 		jsonWriter.WritePropertyName("DisableXZMovement");
@@ -122,6 +127,7 @@ public class GLTFExportMenu : EditorWindow
         GLTFSceneExporter.ExportFullPath = EditorGUILayout.Toggle("Export using original path", GLTFSceneExporter.ExportFullPath);
         GLTFSceneExporter.ExportNames = EditorGUILayout.Toggle("Export names of nodes", GLTFSceneExporter.ExportNames);
         GLTFSceneExporter.RequireExtensions= EditorGUILayout.Toggle("Require extensions", GLTFSceneExporter.RequireExtensions);
+		GLTFSceneExporter.ExportPhysicsColliders = EditorGUILayout.Toggle("Export physics colliders", GLTFSceneExporter.ExportPhysicsColliders);
 		EditorGUILayout.Separator();
 		EditorGUILayout.LabelField("Skeleton Animation", EditorStyles.boldLabel);
 
@@ -149,8 +155,8 @@ public class GLTFExportMenu : EditorWindow
 			"HT_node_collider", MessageType.Info);
     }
 
-    [MenuItem("GLTF/Export Selected")]
-	static void ExportSelected()
+	[MenuItem("GLTF/Export Selected With Transform")]
+	static void ExportSelectedWithTransform()
 	{
 		string name;
 		if (Selection.transforms.Length > 1)
@@ -168,6 +174,50 @@ public class GLTFExportMenu : EditorWindow
 		{
 			OutputPath = path;
 			exporter.SaveGLTFandBin(OutputPath, name);
+		}
+	}
+
+	[MenuItem("GLTF/ExportGLB Selected With Transform")]
+	static void ExportGLBSelectedWithTransform()
+	{
+		string name;
+		if (Selection.transforms.Length > 1)
+			name = SceneManager.GetActiveScene().name;
+		else if (Selection.transforms.Length == 1)
+			name = Selection.activeGameObject.name;
+		else
+			throw new Exception("No objects selected, cannot export.");
+
+		var exportOptions = new ExportOptions { TexturePathRetriever = RetrieveTexturePath };
+		var exporter = new GLTFSceneExporter(Selection.transforms, exportOptions);
+
+		var path = EditorUtility.SaveFolderPanel("glTF Export Path", OutputPath, "");
+		if (!string.IsNullOrEmpty(path))
+		{
+			OutputPath = path;
+			exporter.SaveGLB(OutputPath, name);
+		}
+	}
+
+	[MenuItem("GLTF/Export Selected")]
+	static void ExportSelected()
+	{
+		string name;
+		if (Selection.transforms.Length > 1)
+			name = SceneManager.GetActiveScene().name;
+		else if (Selection.transforms.Length == 1)
+			name = Selection.activeGameObject.name;
+		else
+			throw new Exception("No objects selected, cannot export.");
+
+		var exportOptions = new ExportOptions { TexturePathRetriever = RetrieveTexturePath };
+		var exporter = new GLTFSceneExporter(Selection.transforms, exportOptions);
+
+		var path = EditorUtility.SaveFolderPanel("glTF Export Path", OutputPath, "");
+		if (!string.IsNullOrEmpty(path))
+		{
+			OutputPath = path;
+			exporter.SaveGLTFandBin(OutputPath, name, false);
 		}
 	}
 	
@@ -189,7 +239,7 @@ public class GLTFExportMenu : EditorWindow
 		if (!string.IsNullOrEmpty(path))
 		{
 			OutputPath = path;
-			exporter.SaveGLB(OutputPath, name);
+			exporter.SaveGLB(OutputPath, name, false);
 		}
 	}
 
