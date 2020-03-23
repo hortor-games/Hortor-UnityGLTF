@@ -16,6 +16,7 @@ namespace GLTF.Schema
 		public const string RADIUS = "radius";
 		public const string HEIGHT = "height";
 		public const string DIRECTION = "direction";
+		public const string COLLIDERS = "colliders";
 
 
 		public HT_node_colliderExtensionFactory()
