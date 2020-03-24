@@ -772,8 +772,10 @@ namespace UnityGLTF
 
 		private static bool ContainsValidRenderer (GameObject gameObject)
 		{
-			return (gameObject.GetComponent<MeshFilter>() != null && gameObject.GetComponent<MeshRenderer>() != null) 
-					|| (gameObject.GetComponent<SkinnedMeshRenderer>() != null);
+			var meshRender = gameObject.GetComponent<MeshRenderer>();
+			var meshFilter = gameObject.GetComponent<MeshFilter>();
+			var skinnedMeshRender = gameObject.GetComponent<SkinnedMeshRenderer>();
+			return (meshFilter != null && meshRender != null && meshRender.enabled) || (skinnedMeshRender != null && skinnedMeshRender.enabled);
 		}
 
 		private void FilterPrimitives(Transform transform, out GameObject[] meshPrimitives, out GameObject[] skinnedMeshPrimitives, out GameObject[] nonPrimitives)
@@ -799,6 +801,7 @@ namespace UnityGLTF
 					}
 				}
 			}
+
 			for (var i = 0; i < childCount; i++)
 			{
 				var go = transform.GetChild(i).gameObject;
