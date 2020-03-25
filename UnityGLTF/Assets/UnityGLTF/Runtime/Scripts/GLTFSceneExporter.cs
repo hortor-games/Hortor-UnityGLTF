@@ -678,6 +678,10 @@ namespace UnityGLTF
 				if (collider.GetType() == typeof(BoxCollider))
 				{
 					var c = (BoxCollider)collider;
+					c.center = new Vector3(
+						c.center.x * SchemaExtensions.CoordinateSpaceConversionScale.X,
+						c.center.y * SchemaExtensions.CoordinateSpaceConversionScale.Y,
+						c.center.z * SchemaExtensions.CoordinateSpaceConversionScale.Z);
 					cs.Add(new HT_node_colliderExtension.BoxCollider(c.isTrigger,
 						new GLTF.Math.Vector3(c.center.x, c.center.y, c.center.z),
 						new GLTF.Math.Vector3(c.size.x, c.size.y, c.size.z)));
@@ -1607,8 +1611,7 @@ namespace UnityGLTF
 
 		private bool IsCommonConstantMaterial(Material material)
 		{
-			return material.HasProperty("_Ambient") &&
-				(material.HasProperty("_EmissionTex") || material.HasProperty("_EmissionColor"));
+			return material.HasProperty("_EmissionTex") || material.HasProperty("_EmissionColor");
 		}
 
 		private bool IsCommonLambertMaterial(Material material)

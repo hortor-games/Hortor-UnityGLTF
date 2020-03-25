@@ -3,10 +3,8 @@
     Properties
     {
         _Color ("Color", Color) = (1,1,1,1)
-		_EmissionColor("Emission", Color) = (0,0,0,1)
-		_Ambient ("Ambient", Color) = (0,0,0,1)
 		_MainTex("Albedo (RGB)", 2D) = "white" {}
-		_LightColor ("Light Color", Color) = (1,1,1,1)
+        _EmissionColor ("Emission", Color) = (0,0,0,1)
     }
 
     SubShader
@@ -29,12 +27,10 @@
 
 		fixed4 _Color;
 		fixed4 _EmissionColor;
-		fixed4 _Ambient;
-		fixed4 _LightColor;
 
 		half4 LightingGLTFConstant(SurfaceOutput s, half3 lightDir, half3 viewDir, half atten) {
 			half4 c;
-			c.rgb = (_EmissionColor.rgb + _Ambient.rgb * _LightColor.rgb +  s.Albedo) * atten;
+			c.rgb = (_EmissionColor.rgb +  s.Albedo) * atten;
 			c.a = s.Alpha;
 			return c;
 		}
