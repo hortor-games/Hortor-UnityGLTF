@@ -171,11 +171,11 @@ namespace GLTF.Schema
 
 			if (EmissionTexture != EMISSIONTEXTURE_DEFAULT)
 			{
+				JObject jObj = new JObject();
+				EmissionTexture.Serialize(jObj);
 				valuesObj.Add(new JProperty(
 					KHR_materials_commonExtensionFactory.EMISSION,
-						new JObject(
-							new JProperty(TextureInfo.INDEX, EmissionTexture.Index.Id)
-						)
+						jObj
 					)
 				);
 			}
@@ -197,11 +197,11 @@ namespace GLTF.Schema
 			{
 				if (DiffuseTexture != DIFFUSETEXTURE_DEFAULT)
 				{
+					JObject jObj = new JObject();
+					DiffuseTexture.Serialize(jObj);
 					valuesObj.Add(new JProperty(
 						KHR_materials_commonExtensionFactory.DIFFUSE,
-							new JObject(
-								new JProperty(TextureInfo.INDEX, DiffuseTexture.Index.Id)
-							)
+							jObj
 						)
 					);
 				}
@@ -222,11 +222,11 @@ namespace GLTF.Schema
 			{
 				if (SpecularTexture != SPECULARTEXTURE_DEFAULT)
 				{
+					JObject jObj = new JObject();
+					SpecularTexture.Serialize(jObj);
 					valuesObj.Add(new JProperty(
 						KHR_materials_commonExtensionFactory.SPECULAR,
-							new JObject(
-								new JProperty(TextureInfo.INDEX, SpecularTexture.Index.Id)
-							)
+							jObj
 						)
 					);
 				}

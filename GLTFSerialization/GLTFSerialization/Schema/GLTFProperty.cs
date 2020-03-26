@@ -210,5 +210,25 @@ namespace GLTF.Schema
 				Extras.WriteTo(writer);
 			}
 		}
+
+		public virtual void Serialize(JObject jObject)
+		{
+			if (Extensions != null && Extensions.Count > 0)
+			{
+				JObject obj = new JObject();
+				foreach (var extension in Extensions)
+				{
+					JToken extensionToken = extension.Value.Serialize();
+					obj.Add(extensionToken);
+				}
+
+				jObject.Add(new JProperty("extensions", obj));
+			}
+
+			if (Extras != null)
+			{
+				jObject.Add(new JProperty("extras", Extras));
+			}
+		}
 	}
 }

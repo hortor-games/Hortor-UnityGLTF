@@ -54,11 +54,11 @@ namespace GLTF.Schema
 
 			if (ModmapTexture != MODMAP_TEXTURE_DEFAULT)
 			{
+				JObject jObj = new JObject();
+				ModmapTexture.Serialize(jObj);
 				ext.Add(new JProperty(
 					FB_materials_modmapExtensionFactory.MODMAP_TEXTURE,
-						new JObject(
-							new JProperty(TextureInfo.INDEX, ModmapTexture.Index.Id)
-						)
+						jObj
 					)
 				);
 			}

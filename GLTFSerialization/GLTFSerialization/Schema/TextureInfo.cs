@@ -116,5 +116,16 @@ namespace GLTF.Schema
 
 			base.Serialize(writer);
 		}
+
+		public override void Serialize(JObject jObject)
+		{
+			jObject.Add(new JProperty(INDEX, Index.Id));
+			if (TexCoord != 0)
+			{
+				jObject.Add(new JProperty(TEXCOORD, TexCoord));
+			}
+			
+			base.Serialize(jObject);
+		}
 	}
 }
